@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sheet Coordinate Lookup</title>
+    <style>
+        body { font-family: sans-serif; }
+        label { display: inline-block; width: 30px; }
+        input { margin-bottom: 5px; }
+        #result { margin-top: 15px; padding: 10px; border: 1px solid #ccc; background-color: #f9f9f9; white-space: pre-wrap; /* Preserve formatting */ }
+        .error { color: red; }
+        .success { color: green; }
+        .not_found { color: orange; }
+    </style>
+</head>
+<body>
+
+    <h1>Find Row by Coordinate</h1>
+
+    <div>
+        <label for="x">X:</label>
+        <input type="text" id="x" name="x" value="1"><br>
+        <label for="y">Y:</label>
+        <input type="text" id="y" name="y" value="10"><br>
+        <label for="z">Z:</label>
+        <input type="text" id="z" name="z" value="100"><br>
+        <label for="t">T:</label>
+        <input type="text" id="t" name="t" value="1000"><br>
+    </div>
+
+    <button id="searchButton">Search</button>
+
+    <h2>Result:</h2>
+    <div id="result">Enter coordinates and click Search.</div>
+
+    <script>
+        const scriptUrl = 'YOUR_DEPLOYED_SCRIPT_URL'; // <-- PASTE YOUR WEB APP URL HERE
+        const searchButton = document.getElementById('searchButton');
+        const resultDiv = document.getElementById('result');
+        const inputX = document.getElementById('x');
+        const inputY = document.getElementById('y');
+        const inputZ = document.getElementById('z');
+        const inputT = document.getElementById('t');
+
+        searchButton.addEventListener('click', () => {
+            const xVal = inputX.value.trim();
+            const yVal = inputY.value.trim();
+            const zVal = inputZ.value.trim();
+            const tVal = inputT.value.trim();
+
+            if (!xVal || !yVal || !zVal || !tVal) {
+                resultDiv.textContent = 'Please enter values for X, Y, Z, and T.';
+                resultDiv.className = 'error';
+                return;
+            }
+
+            resultDiv.textContent = 'Searching...';
+            resultDiv.className = ''; // Reset class
+
+            // Construct the URL with query parameters
+            const queryParams = new URLSearchParams({
+                x: xVal,
+                y: yVal,
+                z: zVal,
+                t: tVal
+            });
+            const fetchUrl = `${scriptUrl}?${queryParams.toString()}`;
+
+            // Use Fetch API to call the Apps Script Web App
+            fetch(fetchUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        // Handle HTTP errors (e.g., 404, 500)
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json(); // Parse the JSON response from Apps Script
+                })
+                .then(data => {
+                    console.log("Received data:", data); // Log for debugging
+
+                    if (data.status === 'success') {
+                        resultDiv.textContent = `Status: ${data.status}\nMessage: ${data.message}\nData:\n${JSON.stringify(data.data, null, 2)}`;
+                         resultDiv.className = 'success';
+                    } else if (data.status === 'not_found') {
+                         resultDiv.textContent = `Status: ${data.status}\nMessage: ${data.message}`;
+                         resultDiv.className = 'not_found';
+                    }
+                     else { // Handle errors reported by the script itself
+                        resultDiv.textContent = `Status: ${data.status}\nMessage: ${data.message || 'Unknown error from script.'}`;
+                        resultDiv.className = 'error';
+                    }
+                })
+                .catch(error => {
+                    console.error('Fetch Error:', error);
+                    resultDiv.textContent = `Error fetching data: ${error.message}`;
+                     resultDiv.className = 'error';
+                });
+        });
+    </script>
+
+</body>
+</html>
