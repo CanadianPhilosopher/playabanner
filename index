@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web World Explorer</title>
+    <style>
+        /* Basic Reset & Body Styling */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: sans-serif;
+            overflow: hidden; /* Prevent scrollbars */
+            color: white;
+            background-color: #222; /* Fallback background */
+        }
+
+        /* Game Container - Handles Background Image */
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh; /* Full viewport height */
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            transition: background-image 0.5s ease-in-out; /* Smooth transition */
+            display: flex;
+            flex-direction: column; /* Arrange children vertically */
+            justify-content: space-between; /* Pushes title/coords to top, desc/hud to bottom */
+            align-items: center; /* Center horizontally */
+        }
+
+        /* Text Overlays - Common Styling */
+        .text-overlay {
+            text-align: center;
+            padding: 10px 15px;
+            background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background */
+            border-radius: 8px;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+            margin: 10px; /* Spacing from edges/other elements */
+            max-width: 80%; /* Prevent overlays from getting too wide */
+        }
+
+        /* Title */
+        #location-title {
+            margin-top: 20px; /* Push down from the very top */
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        /* Coordinates */
+        #location-coords {
+            font-size: 0.9em;
+            margin-top: 5px; /* Space below title */
+            background-color: rgba(0, 0, 0, 0.4); /* Slightly less prominent */
+        }
+
+        /* Description */
+        #location-description {
+            margin-bottom: 70px; /* Space above the HUD */
+            font-size: 1.1em;
+            line-height: 1.5;
+        }
+
+        /* HUD - Horizontal Action Bar */
+        #hud {
+            position: absolute; /* Position relative to game-container */
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%); /* Center the HUD */
+            display: flex;
+            gap: 10px; /* Spacing between buttons */
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 10px;
+            z-index: 10; /* Ensure it's above description if they overlap */
+        }
+
+        #hud button {
+            padding: 8px 12px;
+            font-size: 0.9em;
+            cursor: pointer;
+            background-color: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+
+        #hud button:hover {
+            background-color: #555;
+        }
+        #hud button:active {
+            background-color: #333;
+        }
+
+
+        /* Travel Menu Modal */
+        #travel-menu {
+            display: none; /* Hidden by default */
+            position: fixed; /* Fixed position overlay */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8); /* Dark overlay */
+            justify-content: center;
+            align-items: center;
+            z-index: 100; /* Above everything else */
+        }
+
+        #travel-menu.active {
+            display: flex; /* Show the modal */
+        }
+
+        .travel-menu-content {
+            background-color: #333;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 250px;
+            max-width: 90%;
+        }
+
+        .travel-menu-content h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #eee;
+        }
+
+        #destination-list {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px 0;
+        }
+
+        #destination-list button {
+            display: block; /* Make buttons take full width */
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #555;
+            color: white;
+            border: 1px solid #777;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+            text-align: center;
+        }
+
+        #destination-list button:hover {
+            background-color: #666;
+        }
+         #destination-list button:disabled {
+            background-color: #444;
+            color: #888;
+            cursor: not-allowed;
+         }
+
+
+        #cancel-travel {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #803030;
+            color: white;
+            border: 1px solid #a05050;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+        #cancel-travel:hover {
+            background-color: #a04040;
+        }
+
+        /* Loading/Error Indicator */
+        #loading-indicator {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5em;
+            color: white;
+            z-index: 200; /* Above everything */
+        }
+         #loading-indicator.active {
+             display: flex;
+         }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Content will be dynamically added here -->
+        <div class="text-overlay" id="location-title">Loading...</div>
+        <div class="text-overlay" id="location-coords"></div>
+        <div class="text-overlay" id="location-description"></div>
+
+        <!-- HUD -->
+        <div id="hud">
+            <button id="travel-button">Travel</button>
+            <button id="claim-button">Claim Area</button>
+            <button id="terraform-button">Terraform</button>
+            <button id="teleport-button">Teleport</button>
+            <button id="message-button">Leave Message</button>
+        </div>
+    </div>
+
+    <!-- Travel Menu Modal -->
+    <div id="travel-menu">
+        <div class="travel-menu-content">
+            <h3>Choose Destination</h3>
+            <div id="destination-list">
+                <!-- Destination buttons will be added here -->
+            </div>
+            <button id="cancel-travel">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator">
+        <span>Loading...</span>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw4xmG44hZ7WNjzoeFAH3f0aY2_-0LpCK6pNeFHYjiW5H3V-5ze8mhn_L_g5gikl_QP/exec';
+        const START_COORDS = { x: '0', y: '0', z: '0', t: '0' };
+
+        // Data column indices (adjust if your sheet structure changes)
+        const IDX = {
+            X: 0,
+            Y: 1,
+            Z: 2,
+            T: 3,
+            TITLE: 4,
+            DESCRIPTION: 5,
+            IMAGE_URL: 6,
+            CLAIMED_USER: 7,
+            CLAIMED_FACTION: 8,
+            DEST_TEXT_0: 9,
+            DEST_TEXT_1: 10,
+            DEST_TEXT_2: 11,
+            DEST_POS_0: 12,
+            DEST_POS_1: 13,
+            DEST_POS_2: 14
+        };
+
+        // --- State ---
+        let currentCoords = { ...START_COORDS };
+        let currentLocationData = null; // Store the full data for the current location
+
+        // --- DOM Elements ---
+        const gameContainer = document.getElementById('game-container');
+        const locationTitle = document.getElementById('location-title');
+        const locationCoords = document.getElementById('location-coords');
+        const locationDescription = document.getElementById('location-description');
+        const travelButton = document.getElementById('travel-button');
+        const claimButton = document.getElementById('claim-button');
+        const terraformButton = document.getElementById('terraform-button');
+        const teleportButton = document.getElementById('teleport-button');
+        const messageButton = document.getElementById('message-button');
+        const travelMenu = document.getElementById('travel-menu');
+        const destinationList = document.getElementById('destination-list');
+        const cancelTravelButton = document.getElementById('cancel-travel');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // --- Functions ---
+
+        /**
+         * Fetches location data from the Google Apps Script
+         * @param {string} x
+         * @param {string} y
+         * @param {string} z
+         * @param {string} t
+         */
+        async function fetchLocationData(x, y, z, t) {
+            showLoading('Loading location...');
+            const url = new URL(SCRIPT_URL);
+            url.searchParams.append('x', x);
+            url.searchParams.append('y', y);
+            url.searchParams.append('z', z);
+            url.searchParams.append('t', t);
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    // Handle HTTP errors (e.g., 404, 500, script errors)
+                    // The script might return JSON even on errors, try parsing it
+                    let errorData;
+                    try {
+                       errorData = await response.json();
+                    } catch (parseError) {
+                       // If response is not JSON (e.g. plain text error)
+                       throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+                    }
+                     // Assuming the script sends {status: 'error', message: '...'} on failure
+                    const message = errorData?.message || `Server responded with status ${response.status}`;
+                    throw new Error(`Failed to load location data: ${message}`);
+                }
+
+                const data = await response.json();
+
+                // --- IMPORTANT ---
+                // Check the *structure* of the received data.
+                // Your example shows just an array. If your script *actually* wraps it
+                // like { status: "success", data: [...] }, you need to access data.data here.
+                // Assuming the response IS the array directly based on your example:
+                if (!Array.isArray(data) || data.length < IDX.DEST_POS_2 + 1) {
+                    console.error("Received invalid data structure:", data);
+                    throw new Error("Received invalid or incomplete data from server.");
+                }
+
+                currentLocationData = data; // Store the fetched data
+                currentCoords = { x: String(data[IDX.X]), y: String(data[IDX.Y]), z: String(data[IDX.Z]), t: String(data[IDX.T]) }; // Update state
+                updateUI(currentLocationData);
+
+            } catch (error) {
+                console.error('Error fetching location data:', error);
+                showError(`Error: ${error.message}. Could not load location [${x},${y},${z},${t}]. Please try again or check connection.`);
+                // Optionally, could try to reload the previous state or go back to start
+                // For now, just show the error overlay.
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /**
+         * Updates the UI elements based on the fetched location data
+         * @param {Array} data - The array of data for the current location
+         */
+        function updateUI(data) {
+            // Background Image
+            const imageUrl = data[IDX.IMAGE_URL];
+            if (imageUrl) {
+                // Preload image to potentially reduce flicker
+                const img = new Image();
+                img.onload = () => {
+                     gameContainer.style.backgroundImage = `url('${imageUrl}')`;
+                }
+                img.onerror = () => {
+                    console.warn(`Failed to load image: ${imageUrl}`);
+                    gameContainer.style.backgroundImage = 'none'; // Or set a default error image/color
+                }
+                img.src = imageUrl;
+
+            } else {
+                 gameContainer.style.backgroundImage = 'none'; // No image provided
+            }
+
+
+            // Text Content
+            locationTitle.textContent = data[IDX.TITLE] || 'Unknown Area';
+            locationCoords.textContent = `[X: ${data[IDX.X]}, Y: ${data[IDX.Y]}, Z: ${data[IDX.Z]}, T: ${data[IDX.T]}]`;
+            locationDescription.textContent = data[IDX.DESCRIPTION] || 'Nothing of note here.';
+
+            // Update HUD button states if needed (e.g., disable claim if already claimed)
+            // Example: claimButton.disabled = !!data[IDX.CLAIMED_USER];
+        }
+
+        /**
+         * Parses a coordinate string "x,y,z,t" into an object
+         * Returns null if the string is invalid.
+         * @param {string} coordsString
+         * @returns {object|null} {x, y, z, t} or null
+         */
+        function parseCoords(coordsString) {
+            if (!coordsString || typeof coordsString !== 'string') return null;
+            const parts = coordsString.split(',');
+            if (parts.length !== 4) return null;
+            // Trim parts just in case
+            const x = parts[0].trim();
+            const y = parts[1].trim();
+            const z = parts[2].trim();
+            const t = parts[3].trim();
+            // Basic validation: ensure they are not empty strings after trim
+            if (x === '' || y === '' || z === '' || t === '') return null;
+             // Could add more validation here (e.g., check if numeric if needed)
+            return { x, y, z, t };
+        }
+
+
+        /** Shows the travel menu, populating it with destinations */
+        function showTravelMenu() {
+            if (!currentLocationData) {
+                alert("Location data not loaded yet.");
+                return;
+            }
+
+            destinationList.innerHTML = ''; // Clear previous options
+
+            const destinations = [
+                { text: currentLocationData[IDX.DEST_TEXT_0], coords: currentLocationData[IDX.DEST_POS_0] },
+                { text: currentLocationData[IDX.DEST_TEXT_1], coords: currentLocationData[IDX.DEST_POS_1] },
+                { text: currentLocationData[IDX.DEST_TEXT_2], coords: currentLocationData[IDX.DEST_POS_2] }
+            ];
+
+            let hasValidDestination = false;
+            destinations.forEach((dest, index) => {
+                const button = document.createElement('button');
+                 // Check if text and coords string look valid enough
+                if (dest.text && typeof dest.text === 'string' && dest.text.trim() !== '' && dest.text.toLowerCase() !== 'missing' &&
+                    dest.coords && typeof dest.coords === 'string' && dest.coords.includes(','))
+                {
+                    button.textContent = dest.text.trim();
+                    const parsed = parseCoords(dest.coords);
+                     if(parsed) {
+                         button.onclick = () => travelTo(parsed.x, parsed.y, parsed.z, parsed.t);
+                         hasValidDestination = true;
+                     } else {
+                        console.warn(`Invalid coordinate string for destination ${index}: ${dest.coords}`);
+                        button.textContent = `${dest.text.trim()} (Invalid Path)`;
+                        button.disabled = true;
+                     }
+
+                } else {
+                    // Represent an unusable path
+                     button.textContent = (dest.text && dest.text.trim() !== '') ? `${dest.text.trim()} (Blocked)` : `Path ${index+1} (Unavailable)`;
+                     button.disabled = true;
+                }
+                 destinationList.appendChild(button);
+            });
+
+             if (!hasValidDestination) {
+                 const noPaths = document.createElement('p');
+                 noPaths.textContent = "There are no clear paths from here.";
+                 noPaths.style.color = '#aaa';
+                 destinationList.appendChild(noPaths);
+             }
+
+            travelMenu.classList.add('active');
+        }
+
+        /** Hides the travel menu */
+        function hideTravelMenu() {
+            travelMenu.classList.remove('active');
+        }
+
+        /** Initiates travel to new coordinates */
+        function travelTo(x, y, z, t) {
+            hideTravelMenu();
+            console.log(`Traveling to: ${x},${y},${z},${t}`);
+            fetchLocationData(x, y, z, t);
+        }
+
+         /** Shows the loading overlay */
+        function showLoading(message = 'Loading...') {
+            loadingIndicator.querySelector('span').textContent = message;
+            loadingIndicator.classList.add('active');
+        }
+
+        /** Hides the loading overlay */
+        function hideLoading() {
+            loadingIndicator.classList.remove('active');
+        }
+
+        /** Shows an error message (uses loading indicator styling) */
+        function showError(message) {
+            loadingIndicator.querySelector('span').textContent = message;
+            loadingIndicator.style.backgroundColor = 'rgba(150, 0, 0, 0.8)'; // Reddish background for error
+            loadingIndicator.classList.add('active');
+            // Don't automatically hide error messages, user might need to acknowledge/retry
+            // Add a click handler to hide it if needed:
+            // loadingIndicator.onclick = hideLoading;
+        }
+
+
+        // --- Event Listeners ---
+        travelButton.addEventListener('click', showTravelMenu);
+        cancelTravelButton.addEventListener('click', hideTravelMenu);
+
+        // Mockup Buttons
+        claimButton.addEventListener('click', () => alert('Claiming functionality not implemented yet.'));
+        terraformButton.addEventListener('click', () => alert('Terraforming functionality not implemented yet.'));
+        teleportButton.addEventListener('click', () => alert('Teleport functionality not implemented yet.'));
+        messageButton.addEventListener('click', () => alert('Leaving messages functionality not implemented yet.'));
+
+        // Hide modal if clicking outside the content area
+        travelMenu.addEventListener('click', (event) => {
+            if (event.target === travelMenu) { // Check if the click was on the backdrop itself
+                hideTravelMenu();
+            }
+        });
+
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchLocationData(START_COORDS.x, START_COORDS.y, START_COORDS.z, START_COORDS.t);
+        });
+
+    </script>
+
+</body>
+</html>
